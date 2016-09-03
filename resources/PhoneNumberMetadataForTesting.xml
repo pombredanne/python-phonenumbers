@@ -156,6 +156,10 @@
       </premiumRate>
     </territory>
 
+    <!-- Barbados -->
+    <territory id="BB" countryCode="1" internationalPrefix="011">
+    </territory>
+
     <!-- Brazil -->
     <!-- This country is used to test ShortNumberInfo, so at least the country calling code must be
          recognised by the library. -->
@@ -220,6 +224,10 @@
       </fixedLine>
     </territory>
 
+    <!-- Canada -->
+    <territory id="CA" countryCode="1" internationalPrefix="011">
+    </territory>
+
     <!-- Cocos Islands -->
     <!-- Country calling code shared with Australia. -->
     <!-- This country is used to test ShortNumberInfo, so at least the country calling code must be
@@ -227,11 +235,61 @@
     <territory id="CC" countryCode="61">
     </territory>
 
+    <!-- China -->
+    <!-- Used to test as-you-type-formatter with complicated number format patterns. Also used to
+         test that not all geographical mobile numbers have an area code. -->
+    <territory id="CN" countryCode="86" nationalPrefix="0">
+      <availableFormats>
+        <numberFormat nationalPrefixFormattingRule="$NP$FG" pattern="(\d{3})(\d{5,6})"
+                      carrierCodeFormattingRule="$CC $FG">
+          <leadingDigits>[3-9]</leadingDigits>
+          <leadingDigits>[3-9]\d{2}[19]</leadingDigits>
+          <leadingDigits>
+            [3-9]\d{2}(?:
+              10|
+              95
+            )
+          </leadingDigits>
+          <format>$1 $2</format>
+        </numberFormat>
+        <!-- Note that mobile numbers do not get formatted with the national prefix. -->
+        <numberFormat nationalPrefixFormattingRule="$FG" pattern="(\d{3})(\d{8})">
+          <leadingDigits>1</leadingDigits>
+          <format>$1 $2</format>
+        </numberFormat>
+      </availableFormats>
+      <generalDesc>
+        <nationalNumberPattern>
+          [1-7]\d{6,11}|
+          8[0-357-9]\d{6,9}|
+          9\d{7,10}
+        </nationalNumberPattern>
+        <possibleNumberPattern>\d{4,12}</possibleNumberPattern>
+      </generalDesc>
+      <fixedLine>
+        <nationalNumberPattern>[2-9]\d{10}</nationalNumberPattern>
+        <possibleNumberPattern>\d{11}</possibleNumberPattern>
+        <exampleNumber>91234567</exampleNumber>
+      </fixedLine>
+      <mobile>
+        <nationalNumberPattern>
+          1(?:
+            [38]\d|
+            4[57]|
+            5[0-35-9]|
+            7[0136-8]
+          )\d{8}
+        </nationalNumberPattern>
+        <possibleNumberPattern>\d{11}</possibleNumberPattern>
+        <exampleNumber>13123456789</exampleNumber>
+      </mobile>
+    </territory>
+
     <!-- Christmas Islands -->
     <!-- Country calling code shared with Australia. -->
     <!-- This country is used to test ShortNumberInfo, so at least the country calling code must be
          recognised by the library. -->
-    <territory id="CX" countryCode="61">
+    <territory id="CX" countryCode="61" internationalPrefix="00">
     </territory>
 
     <!-- Germany -->
@@ -291,7 +349,8 @@
     </territory>
 
     <!-- France -->
-    <territory id="FR" countryCode="33" nationalPrefix="0" nationalPrefixFormattingRule="$NP$FG">
+    <territory id="FR" countryCode="33" nationalPrefix="0" nationalPrefixFormattingRule="$NP$FG"
+               internationalPrefix="00">
       <availableFormats>
         <!-- We use this to test the phone number matcher. For our test-case, the formatting
              pattern must have as the first group a sub-part of the country calling code,
@@ -750,6 +809,10 @@
         <nationalNumberPattern>8(?:1[01]|2[0156]|84|9[0-37-9])\d{6}</nationalNumberPattern>
         <exampleNumber>810123456</exampleNumber>
       </premiumRate>
+    </territory>
+
+    <!-- Sweden -->
+    <territory id="SE" countryCode="46" internationalPrefix="00">
     </territory>
 
     <!-- Singapore -->

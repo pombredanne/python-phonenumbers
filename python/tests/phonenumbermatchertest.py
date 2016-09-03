@@ -96,7 +96,7 @@ class PhoneNumberMatchTest(unittest.TestCase):
         # Python version extra test
         self.assertEqual("PhoneNumberMatch(start=10, raw_string='1 800 234 45 67', "
                          "numobj=PhoneNumber(country_code=None, national_number=None, extension=None, "
-                         "italian_leading_zero=False, number_of_leading_zeros=None, "
+                         "italian_leading_zero=None, number_of_leading_zeros=None, "
                          "country_code_source=None, preferred_domestic_carrier_code=None))", repr(match))
 
 
@@ -134,11 +134,14 @@ IMPOSSIBLE_CASES = [NumberTest("12345", "US"),
                     NumberTest("2012-01-02 08:00", "US"),
                     NumberTest("2012/01/02 08:00", "US"),
                     NumberTest("20120102 08:00", "US"),
+                    NumberTest("2014-04-12 04:04 PM", "US"),
+                    NumberTest("2014-04-12 &nbsp;04:04 PM", "US"),
+                    NumberTest("2014-04-12 &nbsp;04:04 PM", "US"),
+                    NumberTest("2014-04-12  04:04 PM", "US"),
                     ]
 
 # Strings with number-like things that should only be found under "possible".
-POSSIBLE_ONLY_CASES = [  # US numbers cannot start with 7 in the test metadata to be valid.
-                       NumberTest("7121115678", "US"),
+POSSIBLE_ONLY_CASES = [NumberTest("7121115678", "US"),  # US numbers cannot start with 7 in the test metadata to be valid.
                        # 'X' should not be found in numbers at leniencies stricter than POSSIBLE, unless it represents
                        # a carrier code or extension.
                        NumberTest("1650 x 253 - 1234", "US"),
@@ -904,7 +907,7 @@ class PhoneNumberMatcherTest(TestMetadataTestCase):
             NumberContext("Call me on 21.6. at ", ""),
             # With a number Month/Day/Year date.
             NumberContext("Call me on 06/21/84 at ", ""),
-            ]
+        ]
         self.doTestInContext(number, defaultCountry, contextPairs, Leniency.VALID)
 
     def doTestInContext(self, number, defaultCountry, contextPairs, leniency):
@@ -922,9 +925,9 @@ class PhoneNumberMatcherTest(TestMetadataTestCase):
 
             extracted = text[match.start:match.end]
             self.assertEqual(start, match.start,
-                              msg="Unexpected phone region in '" + text + "'; extracted '" + extracted + "'")
+                             msg="Unexpected phone region in '" + text + "'; extracted '" + extracted + "'")
             self.assertEqual(end, match.end,
-                              msg="Unexpected phone region in '" + text + "'; extracted '" + extracted + "'")
+                             msg="Unexpected phone region in '" + text + "'; extracted '" + extracted + "'")
             self.assertEqual(number, extracted)
             self.assertEqual(match.raw_string, extracted)
 

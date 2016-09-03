@@ -23,6 +23,7 @@ from phonenumbers import PhoneNumber, PhoneMetadata
 from phonenumbers import FrozenPhoneNumber, PhoneNumberDesc
 from phonenumbers import PhoneNumberType, PhoneNumberFormat, NumberParseException
 from phonenumbers import ValidationResult, NumberFormat, CountryCodeSource
+from phonenumbers import region_code_for_country_code
 # Access internal functions of phonenumberutil.py
 from phonenumbers import phonenumberutil, shortnumberinfo
 from phonenumbers.util import u, to_long
@@ -88,6 +89,13 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
         # Check a non-US NANPA country is correctly listed as supported
         self.assertTrue("BS" in phonenumbers.SUPPORTED_REGIONS)
 
+    def testGetSupportedGlobalNetworkCallingCodes(self):
+        globalNetworkCallingCodes = phonenumbers.COUNTRY_CODES_FOR_NON_GEO_REGIONS
+        self.assertTrue(len(globalNetworkCallingCodes) > 0)
+        for callingCode in globalNetworkCallingCodes:
+            self.assertTrue(callingCode > 0)
+            self.assertEqual("001", region_code_for_country_code(callingCode))
+
     def testGetInstanceLoadUSMetadata(self):
         metadata = PhoneMetadata.metadata_for_region("US")
         self.assertEqual("US", metadata.id)
@@ -151,9 +159,15 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
         self.assertEqual("12345678", metadata.toll_free.example_number)
 
     def testIsNumberGeographical(self):
-        self.assertFalse(phonenumberutil._is_number_geographical(BS_MOBILE))  # Bahamas, mobile phone number.
-        self.assertTrue(phonenumberutil._is_number_geographical(AU_NUMBER))  # Australian fixed line number.
-        self.assertFalse(phonenumberutil._is_number_geographical(INTERNATIONAL_TOLL_FREE))  # International toll free number
+        self.assertFalse(phonenumberutil.is_number_geographical(BS_MOBILE))  # Bahamas, mobile phone number.
+        self.assertTrue(phonenumberutil.is_number_geographical(AU_NUMBER))  # Australian fixed line number.
+        self.assertFalse(phonenumberutil.is_number_geographical(INTERNATIONAL_TOLL_FREE))  # International toll free number
+
+        # We test that mobile phone numbers in relevant regions are indeed
+        # considered geographical.
+        self.assertTrue(phonenumberutil.is_number_geographical(AR_MOBILE))  # Argentina, mobile phone number.
+        self.assertTrue(phonenumberutil.is_number_geographical(MX_MOBILE1))  # Mexico, mobile phone number.
+        self.assertTrue(phonenumberutil.is_number_geographical(MX_MOBILE2))  # Mexico, another mobile phone number.
 
     def testIsLeadingZeroPossible(self):
         self.assertTrue(phonenumberutil._is_leading_zero_possible(39))  # Italy
@@ -169,10 +183,14 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
         self.assertEqual(0, phonenumbers.length_of_geographical_area_code(US_TOLLFREE))
         # Google London, which has area code "20".
         self.assertEqual(2, phonenumbers.length_of_geographical_area_code(GB_NUMBER))
-        # A UK mobile phone, which has no area code.
+        # A mobile number in the UK does not have an area code (by default,
+        # mobile numbers do not, unless they have been added to our list of
+        # exceptions).
         self.assertEqual(0, phonenumbers.length_of_geographical_area_code(GB_MOBILE))
         # Google Buenos Aires, which has area code "11".
         self.assertEqual(2, phonenumbers.length_of_geographical_area_code(AR_NUMBER))
+        # A mobile number in Argentina also has an area code.
+        self.assertEqual(3, phonenumbers.length_of_geographical_area_code(AR_MOBILE))
         # Google Sydney, which has area code "2".
         self.assertEqual(1, phonenumbers.length_of_geographical_area_code(AU_NUMBER))
         # Italian numbers - there is no national prefix, but it still has an area code.
@@ -183,6 +201,9 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
         self.assertEqual(0, phonenumbers.length_of_geographical_area_code(US_SHORT_BY_ONE_NUMBER))
         # An international toll free number, which has no area code.
         self.assertEqual(0, phonenumbers.length_of_geographical_area_code(INTERNATIONAL_TOLL_FREE))
+        # A mobile number from China is geographical, but does not have an area code.
+        cnMobile = PhoneNumber(country_code=86, national_number=18912341234)
+        self.assertEqual(0, phonenumbers.length_of_geographical_area_code(cnMobile))
 
     def testGetLengthOfNationalDestinationCode(self):
         # Google MTV, which has national destination code (NDC) "650".
@@ -218,6 +239,12 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
 
         # An international toll free number, which has NDC "1234".
         self.assertEqual(4, phonenumbers.length_of_national_destination_code(INTERNATIONAL_TOLL_FREE))
+
+        # A mobile number from China is geographical, but does not have an area
+        # code: however it still can be considered to have a national
+        # destination code.
+        cnMobile = PhoneNumber(country_code=86, national_number=18912341234)
+        self.assertEqual(3, phonenumbers.length_of_national_destination_code(cnMobile))
 
         # Python version extra test
         # A number with an extension; still has NDC "7912"
@@ -263,9 +290,25 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
         # this method.
         self.assertTrue(phonenumbers.example_number("001") is None)
 
+    def testGetInvalidExampleNumber(self):
+        # RegionCode 001 is reserved for supporting non-geographical country
+        # calling codes. We don't support getting an invalid example number
+        # for it with invalid_example_number.
+        self.assertTrue(phonenumbers.invalid_example_number("001") is None)
+        self.assertTrue(phonenumbers.invalid_example_number("CS") is None)
+        usInvalidNumber = phonenumbers.invalid_example_number("US")
+        self.assertEqual(1, usInvalidNumber.country_code)
+        self.assertFalse(usInvalidNumber.national_number == 0)
+
     def testGetExampleNumberForNonGeoEntity(self):
         self.assertEqual(INTERNATIONAL_TOLL_FREE, phonenumbers.example_number_for_non_geo_entity(800))
         self.assertEqual(UNIVERSAL_PREMIUM_RATE, phonenumbers.example_number_for_non_geo_entity(979))
+
+    def testGetExampleNumberWithoutRegion(self):
+        # In our test metadata we don't cover all types: in our real metadata, we do.
+        self.assertTrue(phonenumbers.example_number_for_type(None, PhoneNumberType.FIXED_LINE) is not None)
+        self.assertTrue(phonenumbers.example_number_for_type(None, PhoneNumberType.MOBILE) is not None)
+        self.assertTrue(phonenumbers.example_number_for_type(None, PhoneNumberType.PREMIUM_RATE) is not None)
 
     def testConvertAlphaCharactersInNumber(self):
         input = "1800-ABC-DEF"
@@ -617,10 +660,10 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
                          phonenumbers.format_national_number_with_preferred_carrier_code(arNumber, ""))
         # Python version extra test: check string conversion with preferred carrier code
         self.assertEqual('Country Code: 54 National Number: 91234125678 '
-                         'Leading Zero(s): False Preferred Domestic Carrier Code: 19',
-                          str(arNumber))
+                         'Preferred Domestic Carrier Code: 19',
+                         str(arNumber))
         self.assertEqual("PhoneNumber(country_code=54, national_number=91234125678, extension=None, "
-                         "italian_leading_zero=False, number_of_leading_zeros=None, "
+                         "italian_leading_zero=None, number_of_leading_zeros=None, "
                          "country_code_source=None, preferred_domestic_carrier_code='19')",
                          repr(arNumber))
         # When the preferred_domestic_carrier_code is present (even when it
@@ -1235,19 +1278,6 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
         self.assertEqual(ValidationResult.TOO_LONG,
                          phonenumbers.is_possible_number_with_reason(INTERNATIONAL_TOLL_FREE_TOO_LONG))
 
-        # Try with number that we don't have metadata for.
-        adNumber = PhoneNumber(country_code=376, national_number=12345)
-        self.assertEqual(ValidationResult.IS_POSSIBLE,
-                         phonenumbers.is_possible_number_with_reason(adNumber))
-        adNumber.country_code = 376
-        adNumber.national_number = to_long(1)
-        self.assertEqual(ValidationResult.TOO_SHORT,
-                         phonenumbers.is_possible_number_with_reason(adNumber))
-        adNumber.country_code = 376
-        adNumber.national_number = to_long(123456789012345678)
-        self.assertEqual(ValidationResult.TOO_LONG,
-                         phonenumbers.is_possible_number_with_reason(adNumber))
-
     def testIsNotPossibleNumber(self):
         self.assertFalse(phonenumbers.is_possible_number(US_LONG_NUMBER))
         self.assertFalse(phonenumbers.is_possible_number(INTERNATIONAL_TOLL_FREE_TOO_LONG))
@@ -1486,7 +1516,7 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
             self.assertEqual(strippedNumber, numberToFill,
                              msg="Did not strip off the country calling code correctly.")
             # Python version extra test covering string conversion with country_code_source present
-            self.assertEqual("Country Code: 1 National Number: None Leading Zero(s): False Country Code Source: 5",
+            self.assertEqual("Country Code: 1 National Number: None Country Code Source: 5",
                              str(number))
         except NumberParseException:
             e = sys.exc_info()[1]
@@ -1608,12 +1638,15 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
         self.assertEqual(NZ_NUMBER, phonenumbers.parse("tel:03-331-6005;phone-context=+64", "NZ"))
         self.assertEqual(NZ_NUMBER, phonenumbers.parse("tel:331-6005;phone-context=+64-3", "NZ"))
         self.assertEqual(NZ_NUMBER, phonenumbers.parse("tel:331-6005;phone-context=+64-3", "US"))
+        self.assertEqual(NZ_NUMBER, phonenumbers.parse("My number is tel:03-331-6005;phone-context=+64", "NZ"))
         # Test parsing RFC3966 format with optional user-defined
         # parameters. The parameters will appear after the context if present.
         self.assertEqual(NZ_NUMBER, phonenumbers.parse("tel:03-331-6005;phone-context=+64;a=%A1", "NZ"))
         # Test parsing RFC3966 with an ISDN subaddress.
         self.assertEqual(NZ_NUMBER, phonenumbers.parse("tel:03-331-6005;isub=12345;phone-context=+64", "NZ"))
         self.assertEqual(NZ_NUMBER, phonenumbers.parse("tel:+64-3-331-6005;isub=12345", "NZ"))
+        # Test parsing RFC3966 with "tel:" missing.
+        self.assertEqual(NZ_NUMBER, phonenumbers.parse("03-331-6005;phone-context=+64", "NZ"))
         # Testing international prefixes.
         # Should strip country calling code.
         self.assertEqual(NZ_NUMBER, phonenumbers.parse("0064 3 331 6005", "NZ"))
@@ -2183,12 +2216,12 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
                                          country_code_source=CountryCodeSource.FROM_NUMBER_WITHOUT_PLUS_SIGN,
                                          preferred_domestic_carrier_code="")
         self.assertEqual(shorterAlphaNumber,
-                          phonenumbers.parse("1800 six-flag", "US", keep_raw_input=True))
+                         phonenumbers.parse("1800 six-flag", "US", keep_raw_input=True))
 
         shorterAlphaNumber.raw_input = "+1800 six-flag"
         shorterAlphaNumber.country_code_source = CountryCodeSource.FROM_NUMBER_WITH_PLUS_SIGN
         self.assertEqual(shorterAlphaNumber,
-                          phonenumbers.parse("+1800 six-flag", "NZ", keep_raw_input=True))
+                         phonenumbers.parse("+1800 six-flag", "NZ", keep_raw_input=True))
 
         shorterAlphaNumber.raw_input = "001800 six-flag"
         shorterAlphaNumber.country_code_source = CountryCodeSource.FROM_NUMBER_WITH_IDD
@@ -2235,7 +2268,7 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
         self.assertEqual("+37612345", phonenumbers.format_number(adNumber, PhoneNumberFormat.E164))
         self.assertEqual("12345", phonenumbers.format_number(adNumber, PhoneNumberFormat.NATIONAL))
         self.assertEqual(PhoneNumberType.UNKNOWN, phonenumbers.number_type(adNumber))
-        self.assertTrue(phonenumbers.is_valid_number(adNumber))
+        self.assertFalse(phonenumbers.is_valid_number(adNumber))
 
         # Test dialing a US number from within Andorra.
         self.assertEqual("00 1 650 253 0000",
@@ -2607,7 +2640,7 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
     leading_digits='123',
     leading_zero_possible=True,
     short_data=True)""",
-                          str(metadataXX))
+                         str(metadataXX))
 
         # Coverage test: invalid example number for region
         PhoneMetadata._region_metadata['XX'] = metadataXX
@@ -2640,7 +2673,7 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
     national_prefix_for_parsing='0',
     number_format=[NumberFormat(pattern='(\\d{4})(\\d{3})(\\d{3})', format='\\1 \\2 \\3', leading_digits_pattern=['1'], national_prefix_formatting_rule='\\1'),
         NumberFormat(pattern='(\\d{1})(\\d{4})(\\d{4})', format='\\1 \\2 \\3', leading_digits_pattern=['[2-478]'], national_prefix_formatting_rule='0\\1')])""",
-                          str(metadata))
+                         str(metadata))
 
     def testMetadataEval(self):
         # Python version extra tests for string conversions
@@ -2670,7 +2703,7 @@ class PhoneNumberUtilTest(TestMetadataTestCase):
         # Python version extra tests
         self.assertTrue(phonenumberutil._region_code_for_number_from_list(GB_NUMBER, ("XX",)) is None)
         self.assertEqual((0, "abcdef"),
-                          phonenumberutil._extract_country_code("abcdef"))
+                         phonenumberutil._extract_country_code("abcdef"))
         metadata = PhoneMetadata.metadata_for_region("AU")
         number = PhoneNumber()
         self.assertEqual((0, u("")),

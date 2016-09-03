@@ -6,7 +6,7 @@ Examples of use:
 >>> from phonenumbers.util import prnt  # equivalent to Py3k print()
 >>> x = phonenumbers.parse("+442083661177", None)
 >>> prnt(x)
-Country Code: 44 National Number: 2083661177 Leading Zero(s): False
+Country Code: 44 National Number: 2083661177
 >>> type(x)
 <class 'phonenumbers.phonenumber.PhoneNumber'>
 >>> str(phonenumbers.format_number(x, phonenumbers.PhoneNumberFormat.NATIONAL))
@@ -17,7 +17,7 @@ Country Code: 44 National Number: 2083661177 Leading Zero(s): False
 '+442083661177'
 >>> y = phonenumbers.parse("020 8366 1177", "GB")
 >>> prnt(y)
-Country Code: 44 National Number: 2083661177 Leading Zero(s): False
+Country Code: 44 National Number: 2083661177
 >>> x == y
 True
 >>>
@@ -78,7 +78,9 @@ from .phonenumber import PhoneNumber, CountryCodeSource, FrozenPhoneNumber
 from .phonemetadata import REGION_CODE_FOR_NON_GEO_ENTITY, NumberFormat, PhoneNumberDesc, PhoneMetadata
 # Functionality
 from .asyoutypeformatter import AsYouTypeFormatter
-from .phonenumberutil import (COUNTRY_CODE_TO_REGION_CODE, SUPPORTED_REGIONS, SUPPORTED_SHORT_REGIONS, UNKNOWN_REGION,
+from .phonenumberutil import (COUNTRY_CODE_TO_REGION_CODE, SUPPORTED_REGIONS,
+                              SUPPORTED_SHORT_REGIONS, UNKNOWN_REGION, COUNTRY_CODES_FOR_NON_GEO_REGIONS,
+                              NON_DIGITS_PATTERN,
                               MatchType, NumberParseException, PhoneNumberFormat,
                               PhoneNumberType, ValidationResult,
                               convert_alpha_characters_in_number,
@@ -96,9 +98,12 @@ from .phonenumberutil import (COUNTRY_CODE_TO_REGION_CODE, SUPPORTED_REGIONS, SU
                               format_number,
                               format_out_of_country_calling_number,
                               format_out_of_country_keeping_alpha_chars,
+                              invalid_example_number,
                               is_alpha_number,
                               is_nanpa_country,
                               is_number_match,
+                              is_number_geographical,
+                              is_number_type_geographical,
                               is_possible_number,
                               is_possible_number_string,
                               is_possible_number_with_reason,
@@ -132,17 +137,17 @@ from .phonenumbermatcher import PhoneNumberMatch, PhoneNumberMatcher, Leniency
 
 # Version number is taken from the upstream libphonenumber version
 # together with an indication of the version of the Python-specific code.
-__version__ = "6.0.0"
+__version__ = "7.6.0"
 
 __all__ = ['PhoneNumber', 'CountryCodeSource', 'FrozenPhoneNumber',
            'REGION_CODE_FOR_NON_GEO_ENTITY', 'NumberFormat', 'PhoneNumberDesc', 'PhoneMetadata',
            'AsYouTypeFormatter',
            # items from phonenumberutil.py
-           'COUNTRY_CODE_TO_REGION_CODE', 'SUPPORTED_REGIONS', 'SUPPORTED_SHORT_REGIONS',
-           'UNKNOWN_REGION', 'NON_DIGITS_PATTERN',
+           'COUNTRY_CODE_TO_REGION_CODE', 'SUPPORTED_REGIONS',
+           'SUPPORTED_SHORT_REGIONS', 'UNKNOWN_REGION', 'COUNTRY_CODES_FOR_NON_GEO_REGIONS',
+           'NON_DIGITS_PATTERN',
            'MatchType', 'NumberParseException', 'PhoneNumberFormat',
            'PhoneNumberType', 'ValidationResult',
-           'choose_formatting_pattern_for_number',
            'convert_alpha_characters_in_number',
            'country_code_for_region',
            'country_code_for_valid_region',
@@ -154,13 +159,15 @@ __all__ = ['PhoneNumber', 'CountryCodeSource', 'FrozenPhoneNumber',
            'format_in_original_format',
            'format_national_number_with_carrier_code',
            'format_national_number_with_preferred_carrier_code',
-           'format_nsn_using_pattern',
            'format_number_for_mobile_dialing',
            'format_number',
            'format_out_of_country_calling_number',
            'format_out_of_country_keeping_alpha_chars',
+           'invalid_example_number',
            'is_alpha_number',
            'is_nanpa_country',
+           'is_number_geographical',
+           'is_number_type_geographical',
            'is_number_match',
            'is_possible_number',
            'is_possible_number_string',

@@ -47,7 +47,9 @@ True
 from .util import prnt, unicod, u, U_EMPTY_STRING, U_ZERO
 from .phonenumberutil import region_code_for_number, PhoneNumberType, PhoneNumber
 from .phonenumberutil import country_mobile_token, national_significant_number, number_type
-from .phonenumberutil import region_code_for_country_code, parse, NumberParseException
+from .phonenumberutil import region_code_for_country_code, region_codes_for_country_code
+from .phonenumberutil import is_valid_number_for_region, parse, NumberParseException
+from .phonenumberutil import is_number_type_geographical
 from .prefix import _prefix_description_for_number
 try:
     from .geodata import GEOCODE_DATA, GEOCODE_LONGEST_PREFIX
@@ -71,7 +73,9 @@ __all__ = ['country_name_for_number', 'description_for_valid_number', 'descripti
 
 
 def country_name_for_number(numobj, lang, script=None, region=None):
-    """Return the given PhoneNumber object's country name in the given language.
+    """Returns the customary display name in the given langauge for the given
+    territory the given PhoneNumber object is from.  If it could be from many
+    territories, nothing is returned.
 
     Arguments:
     numobj -- The PhoneNumber object for which we want to get a text description.
@@ -86,8 +90,19 @@ def country_name_for_number(numobj, lang, script=None, region=None):
 
     Returns a text description in the given language code, for the given phone
     number's region, or an empty string if no description is available."""
-    number_region = region_code_for_number(numobj)
-    return _region_display_name(number_region, lang, script, region)
+    region_codes = region_codes_for_country_code(numobj.country_code)
+    if len(region_codes) == 1:
+        return _region_display_name(region_codes[0], lang, script, region)
+    else:
+        region_where_number_is_valid = u("ZZ")
+        for region_code in region_codes:
+            if is_valid_number_for_region(numobj, region_code):
+                if region_where_number_is_valid != u("ZZ"):
+                    # If we can't assign the phone number as definitely belonging
+                    # to only one territory, then we return nothing.
+                    return U_EMPTY_STRING
+                region_where_number_is_valid = region_code
+        return _region_display_name(region_where_number_is_valid, lang, script, region)
 
 
 def _region_display_name(region_code, lang, script=None, region=None):
@@ -195,19 +210,10 @@ def description_for_number(numobj, lang, script=None, region=None):
     ntype = number_type(numobj)
     if ntype == PhoneNumberType.UNKNOWN:
         return ""
-    elif not _can_be_geocoded(ntype):
+    elif not is_number_type_geographical(ntype, numobj.country_code):
         return country_name_for_number(numobj, lang, script, region)
     return description_for_valid_number(numobj, lang, script, region)
 
-
-# A similar method is implemented as phonenumberutil._is_number_geographical,
-# which performs a stricter check, as it determines if a number has a
-# geographical association. Also, if new phone number types were added, we
-# should check if this other method should be updated too.
-def _can_be_geocoded(ntype):
-    return (ntype == PhoneNumberType.FIXED_LINE or
-            ntype == PhoneNumberType.MOBILE or
-            ntype == PhoneNumberType.FIXED_LINE_OR_MOBILE)
 
 if __name__ == '__main__':  # pragma no cover
     import doctest

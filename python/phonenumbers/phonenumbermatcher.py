@@ -30,10 +30,10 @@ from .phonenumberutil import _SECOND_NUMBER_START_PATTERN, _UNWANTED_END_CHAR_PA
 from .phonenumberutil import MatchType, NumberParseException, PhoneNumberFormat
 from .phonenumberutil import is_possible_number, is_valid_number, parse
 from .phonenumberutil import normalize_digits_only, national_significant_number
-from .phonenumberutil import format_nsn_using_pattern, ndd_prefix_for_region
+from .phonenumberutil import _format_nsn_using_pattern, ndd_prefix_for_region
 from .phonenumberutil import format_number, is_number_match, region_code_for_country_code
 from .phonenumberutil import _maybe_strip_national_prefix_carrier_code
-from .phonenumberutil import choose_formatting_pattern_for_number
+from .phonenumberutil import _choose_formatting_pattern_for_number
 from .phonenumberutil import _formatting_rule_has_first_group_only
 from .phonenumber import CountryCodeSource
 from .phonemetadata import PhoneMetadata
@@ -47,8 +47,7 @@ except ImportError:  # pragma no cover
     # dependency.  The hack below works around this.
     import os
     import sys
-    if (os.path.basename(sys.argv[0]) == "buildmetadatafromxml.py" or
-        os.path.basename(sys.argv[0]) == "buildprefixdata.py"):
+    if os.path.basename(sys.argv[0]) in ("buildmetadatafromxml.py", "buildprefixdata.py"):
         prnt("Failed to import generated data (but OK as during autogeneration)", file=sys.stderr)
         _ALT_NUMBER_FORMATS = {}
     else:
@@ -135,7 +134,7 @@ _SLASH_SEPARATED_DATES = re.compile(u("(?:(?:[0-3]?\\d/[01]?\\d)|(?:[01]?\\d/[0-
 
 # Matches timestamps. Examples: "2012-01-02 08:00". Note that the reg-ex does
 # not include the trailing ":\d\d" -- that is covered by TIME_STAMPS_SUFFIX.
-_TIME_STAMPS = re.compile(u("[12]\\d{3}[-/]?[01]\\d[-/]?[0-3]\\d [0-2]\\d$"))
+_TIME_STAMPS = re.compile(u("[12]\\d{3}[-/]?[01]\\d[-/]?[0-3]\\d +[0-2]\\d$"))
 _TIME_STAMPS_SUFFIX = re.compile(u(":[0-5]\\d"))
 
 # Patterns used to extract phone numbers from a larger phone-number-like
@@ -149,25 +148,25 @@ _TIME_STAMPS_SUFFIX = re.compile(u(":[0-5]\\d"))
 # Note that if there is a match, we will always check any text found up to the
 # first match as well.
 _INNER_MATCHES = (
-     # Breaks on the slash - e.g. "651-234-2345/332-445-1234"
-     re.compile(u("/+(.*)")),
-     # Note that the bracket here is inside the capturing group, since we
-     # consider it part of the phone number. Will match a pattern like "(650)
-     # 223 3345 (754) 223 3321".
-     re.compile(u("(\\([^(]*)")),
-     # Breaks on a hyphen - e.g. "12345 - 332-445-1234 is my number."  We
-     # require a space on either side of the hyphen for it to be considered a
-     # separator.
-     re.compile(u("(?u)(?:\\p{Z}-|-\\s)\\s*(.+)")),
-     # Various types of wide hyphens. Note we have decided not to enforce a
-     # space here, since it's possible that it's supposed to be used to break
-     # two numbers without spaces, and we haven't seen many instances of it
-     # used within a number.
-     re.compile(u("(?u)[\u2012-\u2015\uFF0D]\\s*(.+)")),
-     # Breaks on a full stop - e.g. "12345. 332-445-1234 is my number."
-     re.compile(u("(?u)\\.+\\s*([^.]+)")),
-     # Breaks on space - e.g. "3324451234 8002341234"
-     re.compile(u("(?u)\\s+(\\S+)")))
+    # Breaks on the slash - e.g. "651-234-2345/332-445-1234"
+    re.compile(u("/+(.*)")),
+    # Note that the bracket here is inside the capturing group, since we
+    # consider it part of the phone number. Will match a pattern like "(650)
+    # 223 3345 (754) 223 3321".
+    re.compile(u("(\\([^(]*)")),
+    # Breaks on a hyphen - e.g. "12345 - 332-445-1234 is my number."  We
+    # require a space on either side of the hyphen for it to be considered a
+    # separator.
+    re.compile(u("(?u)(?:\\s-|-\\s)\\s*(.+)")),
+    # Various types of wide hyphens. Note we have decided not to enforce a
+    # space here, since it's possible that it's supposed to be used to break
+    # two numbers without spaces, and we haven't seen many instances of it
+    # used within a number.
+    re.compile(u("(?u)[\u2012-\u2015\uFF0D]\\s*(.+)")),
+    # Breaks on a full stop - e.g. "12345. 332-445-1234 is my number."
+    re.compile(u("(?u)\\.+\\s*([^.]+)")),
+    # Breaks on space - e.g. "3324451234 8002341234"
+    re.compile(u("(?u)\\s+(\\S+)")))
 
 
 class Leniency(object):
@@ -309,7 +308,7 @@ def _all_number_groups_are_exactly_present(numobj, normalized_candidate, formatt
     """
     candidate_groups = re.split(NON_DIGITS_PATTERN, normalized_candidate)
     # Set this to the last group, skipping it if the number has an extension.
-    if numobj.extension != None:
+    if numobj.extension is not None:
         candidate_number_group_index = len(candidate_groups) - 2
     else:
         candidate_number_group_index = len(candidate_groups) - 1
@@ -353,8 +352,8 @@ def _get_national_number_groups(numobj, formatting_pattern=None):
     else:
         # We format the NSN only, and split that according to the separator.
         nsn = national_significant_number(numobj)
-        return format_nsn_using_pattern(nsn, formatting_pattern,
-                                        PhoneNumberFormat.RFC3966).split(U_DASH)
+        return _format_nsn_using_pattern(nsn, formatting_pattern,
+                                         PhoneNumberFormat.RFC3966).split(U_DASH)
 
 
 def _check_number_grouping_is_valid(numobj, candidate, checker):
@@ -433,13 +432,12 @@ def _is_national_prefix_present_if_required(numobj):
         return True
     # Check if a national prefix should be present when formatting this number.
     national_number = national_significant_number(numobj)
-    format_rule = choose_formatting_pattern_for_number(metadata.number_format,
-                                                       national_number)
+    format_rule = _choose_formatting_pattern_for_number(metadata.number_format,
+                                                        national_number)
     # To do this, we check that a national prefix formatting rule was present
     # and that it wasn't just the first-group symbol ($1) with punctuation.
     if (format_rule is not None and
-        format_rule.national_prefix_formatting_rule is not None and
-        len(format_rule.national_prefix_formatting_rule) > 0):
+        format_rule.national_prefix_formatting_rule):
         if format_rule.national_prefix_optional_when_formatting:
             # The national-prefix is optional in these cases, so we don't need
             # to check if it was present.
